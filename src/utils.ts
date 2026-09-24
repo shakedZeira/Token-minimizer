@@ -128,7 +128,13 @@ export function toolCallTurnIndex(completed: number): number {
 
 function cloneDeep(value: unknown): unknown {
   const sc = (globalThis as unknown as { structuredClone?: <T>(v: T) => T }).structuredClone
-  if (typeof sc === "function") return sc(value)
+  if (typeof sc === "function") {
+    try {
+      return sc(value)
+    } catch {
+      /* fall through to JSON for objects with functions (tool definitions) */
+    }
+  }
   return JSON.parse(JSON.stringify(value))
 }
 
@@ -155,6 +161,7 @@ export function restoreInPlace(target: unknown, source: unknown): void {
     }
   }
   for (const key of Object.keys(target)) {
+    if (typeof target[key] === "function") continue
     if (!Object.prototype.hasOwnProperty.call(source, key)) delete target[key]
   }
 }
