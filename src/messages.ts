@@ -17,7 +17,11 @@ type CompletedToolPart = Extract<Part, { type: "tool" }> & {
 }
 
 function isCompletedTool(part: Part): part is CompletedToolPart {
-  return part.type === "tool" && part.state.status === "completed"
+  if (part.type !== "tool") return false
+  const state = (part as { state?: unknown }).state
+  if (state === null || typeof state !== "object") return false
+  const st = state as { status?: unknown; output?: unknown }
+  return st.status === "completed" && typeof st.output === "string"
 }
 
 function collapseExcessNewlines(text: string): string {
@@ -29,6 +33,7 @@ function collapseExcessNewlines(text: string): string {
  * never reassigns the array (in-place requirement of the hook).
  */
 export function trimMessages(messages: MessageEntry[], opts: MessageTrimOptions): void {
+  if (!Array.isArray(messages) || !opts) return
   const budgets = toolBudgets(opts.aggr)
   const len = messages.length
 
@@ -36,7 +41,6 @@ export function trimMessages(messages: MessageEntry[], opts: MessageTrimOptions)
     const entry = messages[i]
     if (!entry || !Array.isArray(entry.parts)) continue
 
-    const role = (entry.info as { role?: string }).role
     const isLast = i === len - 1
 
     for (let p = 0; p < entry.parts.length; p++) {
@@ -44,7 +48,7 @@ export function trimMessages(messages: MessageEntry[], opts: MessageTrimOptions)
       if (!part) continue
 
       if (part.type === "text") {
-        if (opts.collapseText) {
+        if (opts.collapseText && typeof part.text === "string") {
           const next = collapseExcessNewlines(part.text)
           if (next !== part.text) entry.parts[p] = { ...part, text: next }
         }
@@ -78,8 +82,8 @@ export function trimMessages(messages: MessageEntry[], opts: MessageTrimOptions)
 function ageOf(messages: MessageEntry[], index: number): number {
   let age = 0
   for (let j = index + 1; j < messages.length; j++) {
-    const r = (messages[j].info as { role?: string }).role
-    if (r === "assistant") age++
+    const info = messages[j]?.info as { role?: string } | undefined
+    if (info?.role === "assistant") age++
   }
   return age
 }

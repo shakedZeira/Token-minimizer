@@ -7,6 +7,8 @@ import {
   estimateTokens,
   noopOutput,
   toolBudgets,
+  withOutGuard,
+  restoreInPlace,
 } from "../src/utils.js"
 
 describe("utils", () => {
@@ -56,5 +58,33 @@ describe("utils", () => {
     expect(toolBudgets("balanced").ageTurns).toBe(4)
     expect(toolBudgets("balanced").maxChars).toBeLessThan(toolBudgets("light").maxChars)
     expect(toolBudgets("balanced").maxChars).toBe(12000)
+  })
+
+  it("withOutGuard restores output in place when mutation throws", () => {
+    const out: any = { messages: [{ id: "m1" }] }
+    const ref = out.messages
+    expect(() =>
+      withOutGuard("test", out, () => {
+        out.messages.push({ id: "m2" })
+        throw new Error("boom")
+      })
+    ).not.toThrow()
+    expect(out.messages).toBe(ref)
+    expect(out.messages).toHaveLength(1)
+    expect(out.messages[0].id).toBe("m1")
+  })
+
+  it("withOutGuard skips non-object output", () => {
+    expect(() => withOutGuard("test", undefined, () => { throw new Error("boom") })).not.toThrow()
+  })
+
+  it("restoreInPlace deep-restores arrays and objects", () => {
+    const target: any = { messages: [{ id: "a", state: { status: "pending" } }], system: ["x"] }
+    const source: any = { messages: [{ id: "b", state: { status: "completed", output: "y" } }], system: ["y", "z"] }
+    restoreInPlace(target, source)
+    expect(target.messages).toHaveLength(1)
+    expect(target.messages[0].id).toBe("b")
+    expect(target.messages[0].state.output).toBe("y")
+    expect(target.system).toEqual(["y", "z"])
   })
 })

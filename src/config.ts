@@ -24,6 +24,7 @@ export interface ExtendedConfig extends Config {
  * ENGINE's call; the user can set compaction in opencode config if wanted.
  */
 export function applyConfigDefaults(cfg: ExtendedConfig): void {
+  if (cfg === null || typeof cfg !== "object") return
   if (cfg.tool_output === undefined) {
     cfg.tool_output = { max_lines: 2000, max_bytes: 65536 }
   }

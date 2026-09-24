@@ -108,4 +108,43 @@ describe("messages.trimMessages", () => {
     trimMessages(msgs, opts)
     expect(msgs[0].parts[0].state.status).toBe("pending")
   })
+
+  it("does not throw on tool part without state", () => {
+    const msgs: any = [{ info: { id: "1", role: "assistant" }, parts: [{ id: "tp", sessionID: "s", messageID: "m", type: "tool", callID: "c1", tool: "bash" }] }]
+    expect(() => trimMessages(msgs, opts)).not.toThrow()
+  })
+
+  it("does not throw on tool part with empty state", () => {
+    const msgs: any = [{ info: { id: "1", role: "assistant" }, parts: [{ id: "tp", sessionID: "s", messageID: "m", type: "tool", callID: "c1", tool: "bash", state: {} }] }]
+    expect(() => trimMessages(msgs, opts)).not.toThrow()
+  })
+
+  it("does not throw on text part without text", () => {
+    const msgs: any = [{ info: { id: "1", role: "user" }, parts: [{ id: "tp", sessionID: "s", messageID: "m", type: "text" }] }]
+    expect(() => trimMessages(msgs, opts)).not.toThrow()
+  })
+
+  it("does not throw when an entry lacks info", () => {
+    const msgs: any = [
+      { parts: [textPart("hi")] },
+      { info: { id: "2", role: "assistant" }, parts: [textPart("yo")] },
+    ]
+    expect(() => trimMessages(msgs, opts)).not.toThrow()
+    expect(msgs[0].parts[0].text).toBe("hi")
+  })
+
+  it("does not throw when a later message lacks info (ageOf path)", () => {
+    const msgs: any = [
+      assistant("1", [toolPart("c1", "bash", "x".repeat(20000))]),
+      { parts: [textPart("orphan")] },
+      assistant("3", [toolPart("c2", "grep", "small")]),
+    ]
+    expect(() => trimMessages(msgs, opts)).not.toThrow()
+  })
+
+  it("does not replace content on malformed text parts", () => {
+    const msgs: any = [{ info: { id: "1", role: "user" }, parts: [textPart("a\n\n\n\nb"), { id: "tp", sessionID: "s", messageID: "m", type: "text" }] }]
+    trimMessages(msgs, opts)
+    expect(msgs[0].parts[0].text).toBe("a\n\nb")
+  })
 })

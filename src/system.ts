@@ -3,6 +3,8 @@ export const SYSTEM_DIRECTIVE =
 
 export function injectSystemDirective(system: string[]): string[] {
   // Insert after index 0 (the main system block) so the cached prompt prefix stays stable.
+  if (!Array.isArray(system)) return system
+  if (Object.isFrozen(system)) return system
   if (system.length === 0) {
     system.push(SYSTEM_DIRECTIVE)
     return system
