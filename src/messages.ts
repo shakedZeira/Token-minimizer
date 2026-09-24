@@ -17,7 +17,11 @@ type CompletedToolPart = Extract<Part, { type: "tool" }> & {
 }
 
 function isCompletedTool(part: Part): part is CompletedToolPart {
-  return part.type === "tool" && part.state.status === "completed"
+  if (part.type !== "tool") return false
+  const state = (part as { state?: unknown }).state
+  if (state === null || typeof state !== "object") return false
+  const st = state as { status?: unknown; output?: unknown }
+  return st.status === "completed" && typeof st.output === "string"
 }
 
 function collapseExcessNewlines(text: string): string {
@@ -38,6 +42,7 @@ function collapseExcessNewlines(text: string): string {
  *   substituted part carries the same id/session/message so ordering holds.
  */
 export function trimMessages(messages: MessageEntry[], opts: MessageTrimOptions): void {
+  if (!Array.isArray(messages) || !opts) return
   const budgets = toolBudgets(opts.aggr)
   const len = messages.length
 
@@ -45,16 +50,16 @@ export function trimMessages(messages: MessageEntry[], opts: MessageTrimOptions)
     const entry = messages[i]
     if (!entry || !Array.isArray(entry.parts)) continue
 
-    const role = (entry.info as { role?: string }).role
-    const age = ageOf(messages, i)
+const role = (entry.info as { role?: string } | undefined)?.role
+    const age = ageOf(messages, i, budgets.ageTurns)
 
     for (let p = 0; p < entry.parts.length; p++) {
       const part = entry.parts[p]
       if (!part) continue
 
       if (part.type === "text") {
-        // Assistant prose only — never collapse user prompts (task instructions).
-        if (opts.collapseText && role === "assistant") {
+// Assistant prose only — never collapse user prompts (task instructions).
+        if (opts.collapseText && role === "assistant" && typeof part.text === "string") {
           const next = collapseExcessNewlines(part.text)
           if (next !== part.text) entry.parts[p] = { ...part, text: next }
         }
@@ -86,12 +91,15 @@ export function trimMessages(messages: MessageEntry[], opts: MessageTrimOptions)
 /**
  * Age = number of assistant messages strictly after this message's index.
  * A message is "recent" (age < ageTurns) if it is among the last few assistant turns.
+ * Stops early once `cap` is reached — callers only need to know whether the
+ * message is old enough, so this is O(n * cap), not O(n^2).
  */
-function ageOf(messages: MessageEntry[], index: number): number {
+function ageOf(messages: MessageEntry[], index: number, cap: number): number {
   let age = 0
   for (let j = index + 1; j < messages.length; j++) {
-    const r = (messages[j].info as { role?: string }).role
-    if (r === "assistant") age++
+    const info = messages[j]?.info as { role?: string } | undefined
+    if (info?.role === "assistant") age++
+    if (age >= cap) break
   }
   return age
 }

@@ -19,6 +19,7 @@ export const DESCRIPTION_MAP: Record<string, string> = {
 }
 
 export function compressDescription(toolID: string, description: string): string {
+  if (typeof description !== "string") return description
   const slim = DESCRIPTION_MAP[toolID]
   if (slim && slim.length < description.length) return slim
   return description

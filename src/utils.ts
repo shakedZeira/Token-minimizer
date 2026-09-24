@@ -127,3 +127,61 @@ export function toolCallTurnIndex(completed: number): number {
   // completed tool parts count toward assistant turns; keeps call/result pairing intact
   return completed
 }
+
+function cloneDeep(value: unknown): unknown {
+  const sc = (globalThis as unknown as { structuredClone?: <T>(v: T) => T }).structuredClone
+  if (typeof sc === "function") {
+    try {
+      return sc(value)
+    } catch {
+      /* fall through to JSON for objects with functions (tool definitions) */
+    }
+  }
+  // JSON throws on circular refs — withOutGuard catches and fails closed.
+  return JSON.parse(JSON.stringify(value))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+export function restoreInPlace(target: unknown, source: unknown): void {
+  if (Array.isArray(target) && Array.isArray(source)) {
+    target.length = 0
+    for (const item of source) target.push(item)
+    return
+  }
+  if (!isRecord(target) || !isRecord(source)) return
+  for (const key of Object.keys(source)) {
+    const t = target[key]
+    const s = source[key]
+    if (isRecord(t) && isRecord(s)) {
+      restoreInPlace(t, s)
+    } else if (Array.isArray(t) && Array.isArray(s)) {
+      restoreInPlace(t, s)
+    } else {
+      target[key] = s
+    }
+  }
+  for (const key of Object.keys(target)) {
+    if (typeof target[key] === "function") continue
+    if (!Object.prototype.hasOwnProperty.call(source, key)) delete target[key]
+  }
+}
+
+export function withOutGuard(name: string, out: unknown, mutate: () => void): void {
+  if (out === null || out === undefined || typeof out !== "object") return
+  let snapshot: unknown
+  try {
+    snapshot = cloneDeep(out)
+  } catch (err) {
+    console.error(`[token-slim] ${name}: could not snapshot output; skipping mutation`, err)
+    return
+  }
+  try {
+    mutate()
+  } catch (err) {
+    console.error(`[token-slim] ${name}: error during mutation; restoring original output`, err)
+    restoreInPlace(out, snapshot)
+  }
+}
