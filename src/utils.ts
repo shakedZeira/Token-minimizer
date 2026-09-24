@@ -96,12 +96,14 @@ export interface ToolOutputBudgets {
 }
 
 export function toolBudgets(aggr: "light" | "balanced"): ToolOutputBudgets {
-  // Balanced keeps the last 4 assistant turns' outputs fully intact (so a
-  // recent file read is never mangled mid-task) and only center-trims older
-  // outputs that exceed ~12k chars (several hundred lines of source). Tokens
-  // are still saved on genuinely heavy/duplicated dumps once they age out.
-  if (aggr === "light") return { ageTurns: 5, maxChars: 20000, heavyChars: 50000 }
-  return { ageTurns: 4, maxChars: 12000, heavyChars: 30000 }
+  // Capability-safe trimming: long implementation sessions (file reads, reasoning,
+  // then edits many turns later) need their working set intact. Only center-trim
+  // tool outputs that are at least `ageTurns` assistant turns old AND exceed
+  // maxChars; ageTurns is set high enough that a normal 10-20 step build never
+  // loses a read mid-task (the old ageTurns=4/5 starved a sub-agent of file
+  // contents it had loaded and it shipped a plan instead of edits).
+  if (aggr === "light") return { ageTurns: 12, maxChars: 20000, heavyChars: 50000 }
+  return { ageTurns: 10, maxChars: 16000, heavyChars: 30000 }
 }
 
 export interface RemoveNoopOptions {

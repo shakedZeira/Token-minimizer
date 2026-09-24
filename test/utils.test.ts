@@ -52,9 +52,9 @@ describe("utils", () => {
   })
 
   it("toolBudgets returns different tiers", () => {
-    expect(toolBudgets("light").ageTurns).toBe(5)
-    expect(toolBudgets("balanced").ageTurns).toBe(4)
+    expect(toolBudgets("light").ageTurns).toBe(12)
+    expect(toolBudgets("balanced").ageTurns).toBe(10)
     expect(toolBudgets("balanced").maxChars).toBeLessThan(toolBudgets("light").maxChars)
-    expect(toolBudgets("balanced").maxChars).toBe(12000)
+    expect(toolBudgets("balanced").maxChars).toBe(16000)
   })
 })

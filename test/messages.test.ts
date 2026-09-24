@@ -41,16 +41,21 @@ function textPart(text: string) {
 describe("messages.trimMessages", () => {
   const opts: MessageTrimOptions = { aggr: "balanced", removeNoop: true, collapseText: true }
 
-  it("collapses excess newlines in text parts", () => {
-    const msgs = [user("1", [textPart("a\n\n\n\nb")])]
+  it("collapses excess newlines in ASSISTANT text parts only (user prompts preserved)", () => {
+    const msgs = [user("1", [textPart("a\n\n\n\nb")]), assistant("2", [textPart("c\n\n\n\nd")])]
     trimMessages(msgs, opts)
-    expect(msgs[0].parts[0].text).toBe("a\n\nb")
+    expect(msgs[0].parts[0].text).toBe("a\n\n\n\nb")
+    expect(msgs[1].parts[0].text).toBe("c\n\nd")
   })
 
-  it("removes noop tool outputs (not last message)", () => {
+  it("removes noop tool outputs (age >= 2, not last message)", () => {
     const msgs = [
       assistant("1", [toolPart("c1", "bash", "(no output)")]),
       user("2", [textPart("next")]),
+      assistant("3", [toolPart("c2", "grep", "small")]),
+      user("4", [textPart("next")]),
+      assistant("5", [toolPart("c2", "grep", "small")]),
+      user("6", [textPart("next")]),
     ]
     trimMessages(msgs, opts)
     expect(msgs[0].parts).toHaveLength(0)
@@ -62,30 +67,30 @@ describe("messages.trimMessages", () => {
     expect(msgs[0].parts).toHaveLength(1)
   })
 
-  it("truncates old large tool outputs (age >= 4 for balanced)", () => {
+  it("does not remove recent noop tool outputs (age < 2)", () => {
     const msgs = [
-      assistant("1", [toolPart("c1", "bash", "x".repeat(20000))]),
+      assistant("1", [toolPart("c1", "bash", "(no output)")]),
       user("2", [textPart("next")]),
       assistant("3", [toolPart("c2", "grep", "small")]),
-      user("4", [textPart("next")]),
-      assistant("5", [toolPart("c2", "grep", "small")]),
-      user("6", [textPart("next")]),
-      assistant("7", [toolPart("c2", "grep", "small")]),
-      user("8", [textPart("next")]),
-      assistant("9", [toolPart("c2", "grep", "small")]),
     ]
     trimMessages(msgs, opts)
+    expect(msgs[0].parts).toHaveLength(1)
+  })
+
+  it("truncates old large tool outputs (age >= 10 for balanced)", () => {
+    const msgs = [assistant("1", [toolPart("c1", "bash", "x".repeat(20000))])]
+    for (let t = 0; t < 11; t++) msgs.push(user("u" + t, [textPart("next")]))
+    for (let t = 0; t < 10; t++) msgs.push(assistant("a" + t, [toolPart("c2", "grep", "small")]))
+    trimMessages(msgs, opts)
     const out = msgs[0].parts[0].state.output
-    expect(out.length).toBeLessThanOrEqual(12000)
+    expect(out.length).toBeLessThanOrEqual(16000)
     expect(out).toContain("[output trimmed by token-slim]")
   })
 
-  it("does not truncate recent large tool outputs (age < 4)", () => {
-    const msgs = [
-      assistant("1", [toolPart("c1", "bash", "x".repeat(20000))]),
-      user("2", [textPart("next")]),
-      assistant("3", [toolPart("c2", "grep", "small")]),
-    ]
+  it("does not truncate older-large-output within protected window (age < ageTurns)", () => {
+    const msgs = [assistant("1", [toolPart("c1", "bash", "x".repeat(20000))])]
+    for (let t = 0; t < 10; t++) msgs.push(user("u" + t, [textPart("next")]))
+    for (let t = 0; t < 9; t++) msgs.push(assistant("a" + t, [toolPart("c2", "grep", "small")]))
     trimMessages(msgs, opts)
     expect(msgs[0].parts[0].state.output.length).toBe(20000)
   })
